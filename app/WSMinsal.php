@@ -2,6 +2,8 @@
 
 namespace App;
 
+use Exception;
+use GuzzleHttp\Exception\GuzzleException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -20,10 +22,12 @@ use App\File;
 class WSMinsal extends Model
 {
 
-    public static function valida_crea_muestra($request) {
+    public static function valida_crea_muestra($request)
+    {
+//        dd($request);
 
         $response = [];
-        $client = new \GuzzleHttp\Client();
+        $client = new Client();
 
         // $genero = strtoupper($suspectCase->gender[0]);
         if($request->gender == "female"){$genero = "F";}
@@ -38,22 +42,23 @@ class WSMinsal extends Model
         if($request->run == "") {
             $paciente_tipodoc = "PASAPORTE";
             $country = Country::where('name',$request->nationality)->get();
-            // dd($country);
+            // dd($country);e
             $paciente_ext_paisorigen = $country->first()->id_minsal;
         }
         else {
             $paciente_tipodoc = "RUN";
         }
 
-        $codigo_muestra_cliente = SuspectCase::max('id') + 1;
+        $codigo_muestra_cliente = SuspectCase::max('id');
+//        dd($codigo_muestra_cliente);
         // $cod_deis = Laboratory::find(Auth::user()->laboratory_id);
         // dd($cod_deis);
         // dd($request->run_medic);
         $array = array(
             'raw' => array(
-                'codigo_muestra_cliente' => $codigo_muestra_cliente,
-                'rut_responsable' => Auth::user()->run . "-" . Auth::user()->dv, //Claudia Caronna //Auth::user()->run . "-" . Auth::user()->dv, //se va a enviar rut de enfermo del servicio
-                'cod_deis' => '102100', //$request->establishment_id
+                'codigo_muestra_cliente' => $codigo_muestra_cliente + 1,
+                'rut_responsable' => Auth::user()->run . "-" . Auth::user()->dv,
+                'cod_deis' => Establishment::find($request->establishment_id)->new_code_deis,
                 'rut_medico' => $request->run_medic_s_dv . "-" . $request->run_medic_dv, //'16350555-K', //Pedro Valjalo
                 'paciente_run' => $request->run,
                 'paciente_dv' =>  $request->dv,
@@ -71,7 +76,9 @@ class WSMinsal extends Model
                 'paciente_prevision' => 'FONASA', //fijo por el momento
                 'fecha_muestra' => date('Y-m-d H:i:s'),
                 'tecnica_muestra' => 'RT-PCR', //fijo
-                'tipo_muestra' => $request->sample_type
+                'tipo_muestra' => $request->sample_type,
+                'busqueda_activa' => ($request->case_type == 'Busqueda activa') ? 'true' : 'false'
+
             )
         );
 
@@ -88,10 +95,23 @@ class WSMinsal extends Model
             $response = ['status' => 1, 'msg' => $array[0]['id_muestra']];
 
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            $responseBodyAsString = $response->getBody()->getContents();
-            $decode = json_decode($responseBodyAsString);
-            $response = ['status' => 0, 'msg' => $decode->error];
+//            $response = $e->getResponse();
+//            if($response){
+////                dd($response);
+//
+//                $responseBodyAsString = $response->getBody()->getContents();
+//                $decode = json_decode($responseBodyAsString);
+////                dd($decode);
+//                $response = ['status' => 0, 'msg' => $decode->error];
+//            }
+//            else{
+                $response = ['status' => 0, 'msg' => $e->getMessage()];
+//            }
+        }catch (Exception $e){
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
+        } catch (GuzzleException $e) {
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
+
         }
 
         return $response;
@@ -100,7 +120,7 @@ class WSMinsal extends Model
     public static function crea_muestra(SuspectCase $suspectCase) {
 
         $response = [];
-        $client = new \GuzzleHttp\Client();
+        $client = new Client();
 
         // $genero = strtoupper($suspectCase->gender[0]);
         if($suspectCase->gender == "female"){$genero = "F";}
@@ -138,9 +158,9 @@ class WSMinsal extends Model
         $array = array(
             'raw' => array(
                 'codigo_muestra_cliente' => $suspectCase->id,
-                'rut_responsable' => '15980951-K', //$suspectCase->user->run . "-" . $suspectCase->user->dv,//'15980951-K', //Claudia Caronna //Auth::user()->run . "-" . Auth::user()->dv, //se va a enviar rut de enfermo del servicio
-                'cod_deis' => $suspectCase->laboratory->cod_deis, //'102100', //$request->establishment_id
-                'rut_medico' => '16350555-K',//$run_medic,//$suspectCase->run_medic, //'16350555-K', //Pedro Valjalo
+                'rut_responsable' => $suspectCase->user->run . "-" . $suspectCase->user->dv,//'15980951-K', //Claudia Caronna
+                'cod_deis' => $suspectCase->establishment->new_code_deis, //'102100', //$request->establishment_id
+                'rut_medico' => $run_medic,//$suspectCase->run_medic, //'16350555-K', //Pedro Valjalo
                 'paciente_run' => $suspectCase->patient->run,
                 'paciente_dv' => $suspectCase->patient->dv,
                 'paciente_nombres' => $suspectCase->patient->name,
@@ -157,9 +177,14 @@ class WSMinsal extends Model
                 'paciente_prevision' => 'FONASA', //fijo por el momento
                 'fecha_muestra' => $suspectCase->sample_at,
                 'tecnica_muestra' => 'RT-PCR', //fijo
-                'tipo_muestra' => $suspectCase->sample_type
+                'tipo_muestra' => $suspectCase->sample_type,
+                'busqueda_activa' => ($suspectCase->case_type == 'Busqueda activa') ? 'true' : 'false',
+                'id_laboratorio' => $suspectCase->laboratory->id_openagora
+
             )
         );
+
+//        dd(json_encode($array, JSON_PRETTY_PRINT) );
 
         try {
             $response = $client->request('POST', env('WS_CREAR_MUESTRA'), [
@@ -173,10 +198,20 @@ class WSMinsal extends Model
             $response = ['status' => 1, 'msg' => $array[0]['id_muestra']];
 
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            $responseBodyAsString = $response->getBody()->getContents();
-            $decode = json_decode($responseBodyAsString);
-            $response = ['status' => 0, 'msg' => $decode->error];
+//            $response = $e->getResponse();
+//            if($response){
+//                $responseBodyAsString = $response->getBody()->getContents();
+//                $decode = json_decode($responseBodyAsString);
+//                $response = ['status' => 0, 'msg' => $decode->error];
+//            }
+//            else{
+//                $response = ['status' => 0, 'msg' => 'No se pudo conectar a plataforma de toma de muestras. Por favor intente nuevamente en un momento.'];
+//            }
+
+            $response = ['status' => 0, 'msg' => $e->getMessage()];
+
+        }catch (Exception $e){
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
         }
 
         return $response;
@@ -188,7 +223,7 @@ class WSMinsal extends Model
 
         $minsal_ws_id = $suspectCase->minsal_ws_id;
         $response = [];
-        $client = new \GuzzleHttp\Client();
+        $client = new Client();
         $array = array('raw' => array('id_muestra' => $minsal_ws_id));
 
         try {
@@ -200,10 +235,19 @@ class WSMinsal extends Model
             $response = ['status' => 1, 'msg' => 'OK'];
 
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            $responseBodyAsString = $response->getBody()->getContents();
-            $decode = json_decode($responseBodyAsString);
-            $response = ['status' => 0, 'msg' => $decode->error];
+//            $response = $e->getResponse();
+//            if($response){
+//                $responseBodyAsString = $response->getBody()->getContents();
+//                $decode = json_decode($responseBodyAsString);
+//                $response = ['status' => 0, 'msg' => $decode->error];
+//            }
+//            else{
+//                $response = ['status' => 0, 'msg' => 'No se pudo conectar a plataforma de toma de muestras. Por favor intente nuevamente en un momento.'];
+//            }
+            $response = ['status' => 0, 'msg' => $e->getMessage()];
+
+        }catch (Exception $e){
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
         }
 
         return $response;
@@ -217,12 +261,13 @@ class WSMinsal extends Model
             if ($suspectCase->laboratory->pdf_generate) {
                 $case = $suspectCase;
                 $pdf = \PDF::loadView('lab.results.result', compact('case'));
+//                dd($pdf);
             }
         }
 
         $resultado = $suspectCase->covid19;
 
-        $client = new \GuzzleHttp\Client();
+        $client = new Client();
 
         try {
             if ($pdf == NULL) {
@@ -275,11 +320,20 @@ class WSMinsal extends Model
             $response = ['status' => 1, 'msg' => 'OK'];
 
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            $responseBodyAsString = $response->getBody()->getContents();
-            $decode = json_decode($responseBodyAsString);
-            // dd("3".$decode);
-            $response = ['status' => 0, 'msg' => $decode->error];
+//            $response = $e->getResponse();
+//            if($response){
+//                $responseBodyAsString = $response->getBody()->getContents();
+//                $decode = json_decode($responseBodyAsString);
+//                $response = ['status' => 0, 'msg' => $decode->error];
+//            }
+//            else{
+//                $response = ['status' => 0, 'msg' => 'No se pudo conectar a plataforma de toma de muestras. Por favor intente nuevamente en un momento.'];
+//            }
+
+            $response = ['status' => 0, 'msg' => $e->getMessage()];
+
+        }catch (Exception $e){
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
         }
 
         return $response;
@@ -289,7 +343,7 @@ class WSMinsal extends Model
 
         $minsal_ws_id = $suspectCase->minsal_ws_id;
         $response = [];
-        $client = new \GuzzleHttp\Client();
+        $client = new Client();
         $array = array('raw' => array('id_muestra' => $minsal_ws_id,
                                       'id_nuevo_laboratorio' => $laboratory_id));
 
@@ -302,12 +356,54 @@ class WSMinsal extends Model
             $response = ['status' => 1, 'msg' => 'OK'];
 
         } catch (RequestException $e) {
-            $response = $e->getResponse();
-            $responseBodyAsString = $response->getBody()->getContents();
-            $decode = json_decode($responseBodyAsString);
-            $response = ['status' => 0, 'msg' => $decode->error];
+//            $response = $e->getResponse();
+//            if($response){
+//                $responseBodyAsString = $response->getBody()->getContents();
+//                $decode = json_decode($responseBodyAsString);
+//                $response = ['status' => 0, 'msg' => $decode->error];
+//            }
+//            else{
+//                $response = ['status' => 0, 'msg' => 'No se pudo conectar a plataforma de toma de muestras. Por favor intente nuevamente en un momento.'];
+//            }
+            $response = ['status' => 0, 'msg' => $e->getMessage()];
+
+        }catch (Exception $e){
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
         }
 
         return $response;
     }
+
+    /**
+     * @param \App\SuspectCase $suspectCase
+     * @throws GuzzleException
+     *
+     */
+    public static function obtiene_estado_muestra(SuspectCase $suspectCase){
+        $response = [];
+        $client = new Client();
+        try {
+            $response = $client->request('POST', env('WS_DATOS_MUESTRA_ID'), [
+                'multipart' => [
+                    [
+                        'name'     => 'parametros',
+                        'contents' => '{"id_muestra": ' . $suspectCase->minsal_ws_id .'}'
+                    ]
+                ],
+                'headers'  => [ 'ACCESSKEY' => $suspectCase->laboratory->token_ws]
+            ]);
+
+            $array = json_decode($response->getBody()->getContents(), true);
+            $response = ['status' => 1, 'sample_status' => $array[0]['estado_muestra']];
+
+        }catch (RequestException $e){
+            $response = ['status' => 0, 'msg' => $e->getMessage()];
+        }catch (Exception $e){
+            $response = ['status' => 0, 'msg' => "Error inesperado en conexión a plataforma de toma de muestras. Por favor intente nuevamente en un momento. {$e->getMessage()}"];
+
+        }
+
+        return $response;
+    }
+
 }

@@ -71,7 +71,7 @@ class PermissionSeeder extends Seeder
             'description' => 'Permite al usuario registrar en R.S.'
         ]);
 
-        
+
         $permission = Permission::create([
             'name' => 'SanitaryResidence: view',
             'description' => 'Permite al usuario ver (no registrar) en R.S.'
@@ -260,6 +260,35 @@ class PermissionSeeder extends Seeder
             'description' => 'Reporte de positivos por comuna'
         ]);
 
+        $permission = Permission::create([
+            'name' => 'Report: cases with barcodes',
+            'description' => 'Listado de muestras por establecimiento y fecha de muestra con código de barra'
+        ]);
+
+        $permission = Permission::create([
+            'name' => 'NotContacted: create',
+            'description' => 'Crear nuevo paciente no contactado'
+        ]);
+
+        $permission = Permission::create([
+            'name' => 'NotContacted: list',
+            'description' => 'Listar pacientes no contactados'
+        ]);
+
+        $permission = Permission::create([
+            'name' => 'NotContacted: show all',
+            'description' => 'Listar pacientes no contactados independiente de establecimiento asignado'
+        ]);
+
+        $permission = Permission::create([
+            'name' => 'NotContacted: delete',
+            'description' => 'Borrar paciente no contactado'
+        ]);
+
+        $permission = Permission::create([
+            'name' => 'SuspectCase: reception with barcode',
+            'description' => 'Habilita botón para recepcionar mediante código de barras'
+        ]);
 /*
         $users = User::all();
         foreach($users as $user) {

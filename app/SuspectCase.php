@@ -3,6 +3,7 @@
 namespace App;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Patient;
 use File;
@@ -103,6 +104,40 @@ class SuspectCase extends Model implements Auditable
         else return null;
     }
 
+    function getSymptomEspAttribute()
+    {
+        if ($this->symptoms == 1) {
+            return 'Si';
+        } elseif ($this->symptons == 0) {
+            return 'No';
+        } else {
+            return '';
+        }
+
+    }
+
+    function getGestationEspAttribute()
+    {
+        if ($this->gestation == 1) {
+            return 'Si';
+        } elseif ($this->gestation == 0) {
+            return 'No';
+        } else {
+            return '';
+        }
+    }
+
+    function getFunctionaryEspAttribute()
+    {
+        if ($this->functionary == 1) {
+            return 'Si';
+        } elseif ($this->functionary == 0) {
+            return 'No';
+        } else {
+            return '';
+        }
+    }
+
     public function scopeSearch($query, $search)
     {
         if ($search) {
@@ -142,6 +177,10 @@ class SuspectCase extends Model implements Auditable
     public static function getCaseByPatientLaboratory($patients, $laboratory_id){
           $patients_id = $patients->pluck('id');
           $suspectCases = SuspectCase::latest('id')
+//              ->where(function ($query) use ($laboratory_id){
+//                  $query->where('laboratory_id', $laboratory_id)
+//                      ->orWhereNull('laboratory_id');
+//              })
               ->where('laboratory_id',$laboratory_id)
               ->whereIn('patient_id', $patients_id);
           return $suspectCases;

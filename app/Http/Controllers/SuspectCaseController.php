@@ -44,6 +44,8 @@ use App\Imports\DemographicImport;
 use App\Imports\SuspectCaseImport;
 
 use App\WSMinsal;
+use MongoDB\Driver\Session;
+use PDO;
 use Redirect;
 
 class SuspectCaseController extends Controller
@@ -78,30 +80,53 @@ class SuspectCaseController extends Controller
 
       $patients = Patient::getPatientsBySearch($request->get('text'));
       if(!empty($laboratory->id)){
-          $cases['total'] = SuspectCase::where('laboratory_id',$laboratory->id)->count();
-          $cases['positivos']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','positive')->count();
-          $cases['negativos']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','negative')->count();
-          $cases['pendientes']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','pending')->count();
-          $cases['rechazados']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','rejected')->count();
-          $cases['indeterminados']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','undetermined')->count();
+
+//          $cases['total'] = SuspectCase::where('laboratory_id',$laboratory->id)->whereNotNull('reception_at')->count();
+//          $cases['positivos']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','positive')->count();
+//          $cases['negativos']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','negative')->count();
+//          $cases['pendientes']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','pending')->count();
+//          $cases['rechazados']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','rejected')->count();
+//          $cases['indeterminados']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','undetermined')->count();
+
+          $cases['total'] = SuspectCase::where('laboratory_id',$laboratory->id)->whereNotNull('reception_at')->count();
+          $cases['positivos']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','positive')->whereNotNull('reception_at')->count();
+          $cases['negativos']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','negative')->whereNotNull('reception_at')->count();
+          $cases['pendientes']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','pending')->whereNotNull('reception_at')->count();
+          $cases['rechazados']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','rejected')->whereNotNull('reception_at')->count();
+          $cases['indeterminados']=SuspectCase::where('laboratory_id',$laboratory->id)->where('pcr_sars_cov_2','undetermined')->whereNotNull('reception_at')->count();
+
+          DB::connection()->getPdo()->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
           $suspectCases = SuspectCase::getCaseByPatientLaboratory($patients, $laboratory->id)
                                ->latest('id')
                                ->whereIn('pcr_sars_cov_2',$filtro)
+                               ->whereNotNull('reception_at')
                                ->paginate(200);
+          DB::connection()->getPdo()->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
      }
      else{
           $laboratory = null;
-          $cases['total'] = SuspectCase::whereNotNull('laboratory_id')->count();
-          $cases['positivos']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','positive')->count();
-          $cases['negativos']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','negative')->count();
-          $cases['pendientes']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','pending')->count();
-          $cases['rechazados']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','rejected')->count();
-          $cases['indeterminados']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','undetermined')->count();
+//          $cases['total'] = SuspectCase::whereNotNull('laboratory_id')->count();
+//          $cases['positivos']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','positive')->count();
+//          $cases['negativos']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','negative')->count();
+//          $cases['pendientes']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','pending')->count();
+//          $cases['rechazados']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','rejected')->count();
+//          $cases['indeterminados']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','undetermined')->count();
+
+         $cases['total'] = SuspectCase::whereNotNull('laboratory_id')->count();
+         $cases['positivos']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','positive')->whereNotNull('reception_at')->count();
+         $cases['negativos']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','negative')->whereNotNull('reception_at')->count();
+         $cases['pendientes']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','pending')->whereNotNull('reception_at')->count();
+         $cases['rechazados']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','rejected')->whereNotNull('reception_at')->count();
+         $cases['indeterminados']=SuspectCase::whereNotNull('laboratory_id')->where('pcr_sars_cov_2','undetermined')->whereNotNull('reception_at')->count();
+
+          DB::connection()->getPdo()->setAttribute(PDO::ATTR_EMULATE_PREPARES, true);
           $suspectCases = SuspectCase::getCaseByPatient($patients)
                               ->latest('id')
                               ->whereNotNull('laboratory_id')
                               ->whereIn('pcr_sars_cov_2',$filtro)
+                              ->whereNotNull('reception_at')
                               ->paginate(200);
+          DB::connection()->getPdo()->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
       }
       return view('lab.suspect_cases.index', compact('suspectCases','request','laboratory','cases'));
   }
@@ -117,21 +142,36 @@ class SuspectCaseController extends Controller
       $searchText = $request->get('text');
       $arrayFilter = (empty($request->filter)) ? array() : $request->filter;
 
-      $suspectCasesTotal = SuspectCase::where(function($q){
-          $q->whereIn('establishment_id', Auth::user()->establishments->pluck('id'))
-              ->orWhere('user_id', Auth::user()->id);
-      })->get();
+//      $suspectCasesTotal = SuspectCase::where(function($q){
+//          $q->whereIn('establishment_id', Auth::user()->establishments->pluck('id'))
+//              ->orWhere('user_id', Auth::user()->id);
+//      })->get();
 
-      $suspectCases = SuspectCase::where(function($q){
-          $q->whereIn('establishment_id', Auth::user()->establishments->pluck('id'))
-              ->orWhere('user_id', Auth::user()->id);
-      })
-          ->patientTextFilter($searchText)
-          ->whereIn('pcr_sars_cov_2', $arrayFilter)
-          ->paginate(200);
+        $suspectCasesTotal = SuspectCase::whereNotNull('reception_at')
+            ->where(function($q){
+                $q->whereIn('establishment_id', Auth::user()->establishments->pluck('id'))
+                    ->orWhere('user_id', Auth::user()->id);
+            })->get();
+
+//      $suspectCases = SuspectCase::where(function($q){
+//          $q->whereIn('establishment_id', Auth::user()->establishments->pluck('id'))
+//              ->orWhere('user_id', Auth::user()->id);
+//      })
+//          ->patientTextFilter($searchText)
+//          ->whereIn('pcr_sars_cov_2', $arrayFilter)
+//          ->paginate(200);
+
+        $suspectCases = SuspectCase::whereNotNull('reception_at')
+            ->where(function($q){
+                $q->whereIn('establishment_id', Auth::user()->establishments->pluck('id'))
+                    ->orWhere('user_id', Auth::user()->id);
+            })
+            ->patientTextFilter($searchText)
+            ->whereIn('pcr_sars_cov_2', $arrayFilter)
+            ->paginate(200);
 
       return view('lab.suspect_cases.ownIndex', compact('suspectCases', 'arrayFilter', 'searchText', 'laboratory', 'suspectCasesTotal'));
-    }    
+    }
 
     /**
      * Muestra exámenes asociados a la comunas del usuario.
@@ -188,15 +228,20 @@ class SuspectCaseController extends Controller
      */
     public function admission()
     {
+        if(!Auth::user()->laboratory_id){
+            session()->flash('warning', 'Ud. debe tener asignado un laboratorio para agregar un nuevo caso.');
+            return redirect()->back()->withInput();
+        }
+
         $regions = Region::orderBy('id','ASC')->get();
         $communes = Commune::orderBy('id','ASC')->get();
         $countries = Country::select('name')->orderBy('id', 'ASC')->get();
 
         $env_communes = array_map('trim',explode(",",env('COMUNAS')));
         //$establishments = Establishment::whereIn('commune_id',$env_communes)->where('name','<>','Otros')->orderBy('name','ASC')->get();
-        
+
         $establishmentsusers = EstablishmentUser::where('user_id',Auth::id())->get();
-        
+
         //dd($establishmentsusers);
 
         $sampleOrigins = SampleOrigin::orderBy('alias')->get();
@@ -204,21 +249,263 @@ class SuspectCaseController extends Controller
     }
 
 
-    public function reception(Request $request, SuspectCase $suspectCase)
+    public function reception(Request $request, SuspectCase $suspectCase, $barcodeReception = false)
     {
+        //Obtiene datos de recepcion actuales
+        $receptor_id_old = $suspectCase->receptor_id;
+        $reception_id_old = $suspectCase->reception_id;
+
         /* Recepciona en sistema */
-        $suspectCase->laboratory_id = Auth::user()->laboratory->id;
         $suspectCase->receptor_id   = Auth::id();
         $suspectCase->reception_at  = date('Y-m-d H:i:s');
+        if(!$suspectCase->minsal_ws_id) $suspectCase->laboratory_id = Auth::user()->laboratory->id;
         $suspectCase->save();
 
-        session()->flash('info', 'Se ha recepcionada la muestra: '
+        /* Webservice minsal */
+        //####### recepciona en webservice ########
+        if (env('ACTIVA_WS', false) == true) {
+            if ($suspectCase->laboratory_id != null) {
+                if ($suspectCase->laboratory->minsal_ws == true) {
+                    if ($suspectCase->minsal_ws_id) {
+                        // recepciona en minsal
+                        $response = WSMinsal::recepciona_muestra($suspectCase);
+                        if ($response['status'] == 0) {
+                            session()->flash('warning', 'Error al recepcionar muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg'] . ".");
+                            $suspectCase->receptor_id = $receptor_id_old;
+                            $suspectCase->reception_at = $reception_id_old;
+                            $suspectCase->save();
+                            if($barcodeReception) return false;
+                            return redirect()->back()->withInput();
+                        }
+                    }
+                }
+            }
+        }
+
+        session()->flash('success', 'Se ha recepcionada la muestra: '
             . $suspectCase->id . ' en laboratorio: '
             . Auth::user()->laboratory->name);
 
+        if($barcodeReception) return true;
         return redirect()->back();
     }
 
+//    public function reception(Request $request, SuspectCase $suspectCase) //recepcion antes en pntm y luego monitor
+//    {
+//        /* Webservice minsal */
+//        //####### recepciona en webservice ########
+//        if (env('ACTIVA_WS', false) == true) {
+//            if ($suspectCase->minsal_ws_id) {
+//                if ($suspectCase->laboratory_id != null) {
+//                    if ($suspectCase->laboratory->minsal_ws == true) {
+//                        // recepciona en minsal
+//                        $response = WSMinsal::recepciona_muestra($suspectCase);
+//                        if ($response['status'] == 1) {
+//                            $suspectCase->receptor_id = Auth::id();
+//                            $suspectCase->reception_at = date('Y-m-d H:i:s');
+//                            $suspectCase->save();
+//                        } else {
+//                            session()->flash('info', 'Error al recepcionar muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg'] . ".");
+////                            $suspectCase->receptor_id = NULL;
+////                            $suspectCase->reception_at = NULL;
+////                            $suspectCase->save();
+//                            return redirect()->back()->withInput();
+//                        }
+//                    }else{
+//                        $suspectCase->receptor_id = Auth::id();
+//                        $suspectCase->reception_at = date('Y-m-d H:i:s');
+//                        if (!$suspectCase->minsal_ws_id) $suspectCase->laboratory_id = Auth::user()->laboratory->id;
+//                    }
+//                } else {
+//                    session()->flash('info', 'Error al recepcionar muestra ' . $suspectCase->id . ' en MINSAL. ' . 'No existe laboratory_id' . ".");
+//                    return redirect()->back()->withInput();
+//                }
+//            } else {
+//                $suspectCase->receptor_id = Auth::id();
+//                $suspectCase->reception_at = date('Y-m-d H:i:s');
+//                $suspectCase->laboratory_id = Auth::user()->laboratory->id;
+//            }
+//        } else {
+//            $suspectCase->receptor_id = Auth::id();
+//            $suspectCase->reception_at = date('Y-m-d H:i:s');
+//            if (!$suspectCase->minsal_ws_id) $suspectCase->laboratory_id = Auth::user()->laboratory->id;
+//        }
+//
+//        session()->flash('info', 'Se ha recepcionada la muestra: '
+//            . $suspectCase->id . ' en laboratorio: '
+//            . Auth::user()->laboratory->name);
+//
+//        return redirect()->back();
+//    }
+
+    /**
+     * Recepciona masivamente muestras
+     * @param Request $request
+     */
+    public function massReception(Request $request)
+    {
+        //VALIDA QUE SE HAYA SELECCIONADO UN EXAMEN
+        $request->validate([
+            'casos_seleccionados' => ['required']
+        ],
+            [
+                'required' => 'Debe seleccionar al menos un exámen.'
+            ]);
+
+        $idsCasesReceptionArray = $request->get('casos_seleccionados');
+        $errorMsg = '';
+//        $oldCases = SuspectCase::find($request->get('casos_seleccionados'));
+
+        if (env('ACTIVA_WS', false) == true) {
+            $cases = SuspectCase::whereIn('id', $idsCasesReceptionArray)->get();
+            foreach ($cases as $case) {
+                if ($case->minsal_ws_id) {
+                    if ($case->laboratory_id != null) {
+                        if ($case->laboratory->minsal_ws == true) {
+                            // recepciona en minsal
+                            $response = WSMinsal::recepciona_muestra($case);
+                            if ($response['status'] == 1) {
+                                $case->receptor_id = Auth::id();
+                                $case->reception_at = date('Y-m-d H:i:s');
+                                $case->save();
+                            } else {
+                                $errorMsg = $errorMsg . 'Error al recepcionar muestra ' . $case->id . ' en MINSAL. ' . $response['msg'] . "<br>";
+                            }
+                        }else{
+                            $case->receptor_id = Auth::id();
+                            $case->reception_at = date('Y-m-d H:i:s');
+                            $case->save();
+                        }
+                    }else{
+                        $errorMsg = $errorMsg . 'No es posible modificar laboratorio en PNTM para caso ' . $case->id . ' No existe laboratory_id.' . '<br>';
+                    }
+                }else{
+                    $case->receptor_id = Auth::id();
+                    $case->reception_at = date('Y-m-d H:i:s');
+                    $case->laboratory_id = Auth::user()->laboratory->id;
+                    $case->save();
+                }
+            }
+        }else{
+            /* Recepciona en sistema sin pasar por ws */
+            //todo quitar update de laboratory_id cuando todos los casos tengan laboratory_id?
+            DB::table('suspect_cases')
+                ->whereIn('id', $idsCasesReceptionArray)
+                ->update(['receptor_id' => Auth::id(),
+                    'reception_at' => date('Y-m-d H:i:s'),
+                    'laboratory_id' => Auth::user()->laboratory->id]);
+        }
+
+        if($errorMsg == ''){
+            session()->flash('success', 'Se recepcionaron muestras correctamente.');
+        }else{
+            session()->flash('warning', $errorMsg);
+        }
+        return redirect()->back();
+    }
+
+    /**
+     * Derivar casos a otros labs
+     * @param Request $request
+     */
+    public function derive(Request $request)
+    {
+        //VALIDA QUE SE HAYA SELECCIONADO UN EXAMEN
+        $request->validate([
+            'casos_seleccionados' => ['required']
+        ],
+        [
+            'required' => 'Debe seleccionar al menos un exámen.'
+        ]);
+
+        $idsCasosDerivarArray = $request->get('casos_seleccionados');
+        $laboratory = Laboratory::find($request->get('laboratory_id_derive'));
+        $errorMsg = '';
+
+        //SE ENVIA A WS
+        if (env('ACTIVA_WS', false) == true) {
+            $cases = SuspectCase::whereIn('id', $idsCasosDerivarArray)->get();
+            foreach ($cases as $case) {
+                if ($case->minsal_ws_id) {
+                    if ($case->laboratory_id != null) {
+                        if ($case->laboratory->minsal_ws == true) {
+                            if ($laboratory->id_openagora != null) {
+                                $response = WSMinsal::cambia_laboratorio($case, $laboratory->id_openagora);
+
+                                if ($response['status'] == 1) {
+                                    $this->saveDerivation($laboratory, $case);
+                                } else {
+                                    $errorMsg = $errorMsg . 'Error al intentar cambiar laboratorio de la muestra ' . $case->id . ' en MINSAL. ' . $response['msg'] . '<br>';
+                                }
+                            } else {
+                                $errorMsg = $errorMsg . 'No es posible modificar laboratorio en PNTM para caso ' . $case->id . '. No existe *id PNTM* del laboratorio.' . '<br>';
+                            }
+                        }else{
+                            $this->saveDerivation($laboratory, $case);
+                        }
+                    }else{
+                        $errorMsg = $errorMsg . 'No es posible modificar laboratorio en PNTM para caso '. $case->id  . '. No existe laboratory_id.' . '<br>';
+                    }
+                }else{
+                    $this->saveDerivation($laboratory, $case);
+                }
+            }
+        }else{
+            //SE GUARDA EN BD ESMERALDA SIN PASAR POR WS
+            if($laboratory->external){
+                $derivedCasesCant = DB::table('suspect_cases')
+                    ->whereIn('id', $idsCasosDerivarArray)
+                    ->update(['external_laboratory' => $laboratory->name,
+                        'sent_external_lab_at' => date("Y-m-d H:i:s")]);
+
+                DB::table('suspect_cases')
+                    ->whereIn('id', $idsCasosDerivarArray)
+                    ->update(['reception_at' => date('Y-m-d H:i:s'),
+                        'receptor_id' => Auth::id()]);
+            }else{
+                $derivedCasesCant = DB::table('suspect_cases')
+                    ->whereIn('id', $idsCasosDerivarArray)
+                    ->update(['laboratory_id' => $laboratory->id,
+                        'derivation_internal_lab_at' => date("Y-m-d H:i:s")]);
+
+                DB::table('suspect_cases')
+                    ->whereIn('id', $idsCasosDerivarArray)
+                    ->update(['reception_at' => NULL,
+                        'receptor_id' => NULL]);
+            }
+        }
+
+        if($errorMsg == ''){
+            session()->flash('success', "Se derivaron los casos a laboratorio $laboratory->alias ");
+        }else{
+            session()->flash('warning', $errorMsg);
+        }
+
+        return redirect()->back();
+
+    }
+
+    /**
+     * Guarda derivación segun sea lab externo o no.
+     * @param Laboratory $laboratory
+     * @param SuspectCase $case
+     */
+    private function saveDerivation(Laboratory $laboratory, SuspectCase $case): void
+    {
+        if ($laboratory->external) {
+            $case->external_laboratory = $laboratory->name;
+            $case->sent_external_lab_at = date("Y-m-d H:i:s");
+            $case->reception_at = date('Y-m-d H:i:s');
+            $case->receptor_id = Auth::id();
+            $case->save();
+        } else {
+            $case->laboratory_id = $laboratory->id;
+            $case->derivation_internal_lab_at = date("Y-m-d H:i:s");
+            $case->reception_at = NULL;
+            $case->receptor_id = NULL;
+            $case->save();
+        }
+    }
 
     /**
      * NO UTILIZAR
@@ -332,19 +619,23 @@ class SuspectCaseController extends Controller
         /* La muestra se recepciona inmediatamente */
         if(Auth::user()->laboratory_id) {
             $suspectCase->laboratory_id = Auth::user()->laboratory_id;
-            $suspectCase->reception_at  = date('Y-m-d H:i:s');
-            $suspectCase->receptor_id   = Auth::id();
         }
+
+
 
         // ws minsal: previo a guardar, se verifica que la información sea correcta.
         if (env('ACTIVA_WS', false) == true) {
-            $response = WSMinsal::valida_crea_muestra($request);
-            $ws_minsal_id = $response['msg'];
-            if ($response['status'] == 0) {
-                session()->flash('info', 'Error al crear muestra . ' . $response['msg']);
-                return redirect()->back()->withInput();
+            if ($suspectCase->laboratory->minsal_ws == true) {
+                $response = WSMinsal::valida_crea_muestra($request);
+                $ws_minsal_id = $response['msg'];
+                if ($response['status'] == 0) {
+                    session()->flash('warning', 'Error al validar muestra . ' . $response['msg']);
+                    return redirect()->back()->withInput();
+                }
             }
         }
+
+
 
         /* Guarda el caso sospecha */
         $patient->suspectCases()->save($suspectCase);
@@ -359,41 +650,35 @@ class SuspectCaseController extends Controller
             $demographic->save();
         }
 
-        // /* Webservice minsal */
-        // /* Si se crea el caso por alguien con laboratorio asignado */
-        // /* La muestra se crea y recepciona inmediatamente en minsal */
-        // if(Auth::user()->laboratory_id) {
-        //     //####### crea muestra en webservice ########
-        //     $response = WSMinsal::crea_muestra($suspectCase);
-        //     $ws_minsal_id = $response['msg'];
-        //     if ($response['status'] == 0) {
-        //         session()->flash('info', 'Error al subir muestra a MINSAL. ' . $response['msg']);
-        //         $suspectCase->forceDelete();
-        //         return redirect()->back()->withInput();
-        //     }
-        //
-        //     $suspectCase->minsal_ws_id = $ws_minsal_id;
-        //     $suspectCase->save();
-        //
-        //     ////####### se recepciona la muestra //#######
-        //     $response = WSMinsal::recepciona_muestra($suspectCase);
-        //     if ($response['status'] == 0) {
-        //         session()->flash('info', 'Error al recepcionar muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg']);
-        //         $suspectCase->laboratory_id = NULL;
-        //         $suspectCase->receptor_id   = NULL;
-        //         $suspectCase->reception_at  = NULL;
-        //         $suspectCase->save();
-        //         return redirect()->back()->withInput();
-        //     }
-        //
-        //     session()->flash('success', 'Se ha creado el caso número: <h3>'. $suspectCase->id. ' <a href="' . route('lab.suspect_cases.notificationForm',$suspectCase)
-        //         . '">Imprimir Formulario</a></h3><br />Se ha creado y recepcionado muestra en Minsal. Id generado: ' .$ws_minsal_id);
-        //
-        //     return redirect()->back();
-        // }
+
+        /* Webservice minsal */
+        /* Si se crea el caso por alguien con laboratorio asignado */
+        /* La muestra se crea y recepciona inmediatamente en minsal */
+        if (env('ACTIVA_WS', false) == true) {
+            if($suspectCase->laboratory_id != null) {
+                if ($suspectCase->laboratory->minsal_ws == true) {
+                    //####### crea muestra en webservice ########
+                    $response = WSMinsal::crea_muestra($suspectCase);
+                    $ws_minsal_id = $response['msg'];
+                    if ($response['status'] == 0) {
+                        session()->flash('warninig', 'Error al subir muestra a MINSAL. ' . $response['msg']);
+                        $suspectCase->forceDelete();
+                        return redirect()->back()->withInput();
+                    }
+
+                    $suspectCase->minsal_ws_id = $ws_minsal_id;
+                    $suspectCase->save();
+
+                    session()->flash('success', 'Se ha creado el caso número: <h3>'. $suspectCase->id. ' <a href="' . route('lab.suspect_cases.notificationFormSmall',$suspectCase)
+                        . '">Imprimir Formulario</a></h3><br />Se ha creado muestra en PNTM. Id generado: ' .$ws_minsal_id);
+
+                    return redirect()->back();
+                }
+            }
+        }
 
         session()->flash('success', 'Se ha creado el caso número: <h3>'
-            . $suspectCase->id. ' <a href="' . route('lab.suspect_cases.notificationForm',$suspectCase)
+            . $suspectCase->id. ' <a href="' . route('lab.suspect_cases.notificationFormSmall',$suspectCase)
             . '">Imprimir Formulario</a></h3>');
 
         return redirect()->back();
@@ -419,8 +704,9 @@ class SuspectCaseController extends Controller
     public function edit(SuspectCase $suspectCase)
     {
         //dd(request()::route()->getName());
-        $external_labs = Laboratory::where('external',1)->orderBy('name')->get();
-        $local_labs = Laboratory::where('external',0)->orderBy('name')->get();
+//        $external_labs = Laboratory::where('external',1)->orderBy('name')->get();
+//        $local_labs = Laboratory::where('external',0)->orderBy('name')->get();
+        $laboratories = Laboratory::all();
 
         $establishments = Establishment::whereIn('commune_id',explode(',',env('COMUNAS')))
                                         ->orderBy('name','ASC')->get();
@@ -428,7 +714,7 @@ class SuspectCaseController extends Controller
         $sampleOrigins = SampleOrigin::orderBy('alias')->get();
 
         return view('lab.suspect_cases.edit',
-            compact('suspectCase','external_labs','local_labs','establishments','sampleOrigins')
+            compact('suspectCase','establishments','sampleOrigins', 'laboratories')
         );
     }
 
@@ -442,6 +728,7 @@ class SuspectCaseController extends Controller
     public function update(Request $request, SuspectCase $suspectCase)
     {
         $old_pcr = $suspectCase->pcr_sars_cov_2;
+        $old_external_laboratory = $suspectCase->external_laboratory;
 
         $suspectCase->fill($request->all());
 
@@ -468,8 +755,105 @@ class SuspectCaseController extends Controller
         }
         }
 
+        if ($old_pcr == 'pending' && ($suspectCase->pcr_sars_cov_2 == 'positive' || $suspectCase->pcr_sars_cov_2 == 'negative' ||
+                $suspectCase->pcr_sars_cov_2 == 'undetermined' || $suspectCase->pcr_sars_cov_2 == 'rejected')
+            && $suspectCase->patient->demographic != NULL) {
+
+            $suspectCase->pcr_result_added_at = Carbon::now();
+
+        }
 
         $suspectCase->save();
+        /* Webservice minsal */
+        //##### se genera envio de resultado a ws minsal #####
+
+        if (env('ACTIVA_WS', false) == true) {
+            if ($suspectCase->laboratory_id != null) {
+                if ($suspectCase->laboratory->minsal_ws == true) {
+                    if ($suspectCase->minsal_ws_id) {
+                        //obtiene id laboratorio external_laboratory
+                        $external_laboratory = Laboratory::where('name', $suspectCase->external_laboratory)->first();
+
+                        // //caso1
+                        //todo eliminar caso 1? ya que se hace la derivacion en otro formulario
+                        if ($old_external_laboratory == NULL && $suspectCase->external_laboratory != null) {
+                            //envío información minsal
+                            if ($external_laboratory->id_openagora != null) {
+
+//                             $response = WSMinsal::devolver_muestra($suspectCase);
+//                             if ($response['status'] == 0) {
+//                                 session()->flash('info', 'Error al intentar devolver estado de la muestra (de recepcionada a creada).' . $suspectCase->id . ' en MINSAL. ' . $response['msg']);
+//                                 // $suspectCase->result_ifd = "No solicitado";
+//                                 $suspectCase->pcr_sars_cov_2_at = NULL;
+//                                 $suspectCase->pcr_sars_cov_2 = 'pending';
+//                                 $suspectCase->validator_id = NULL;
+//                                 $suspectCase->file = NULL;
+//                                 $suspectCase->save();
+//                                 // return redirect()->route('lab.suspect_cases.index',$suspectCase->laboratory_id);
+//                                 return redirect()->back()->withInput();
+//                             }
+
+                                $response = WSMinsal::cambia_laboratorio($suspectCase, $external_laboratory->id_openagora);
+                                if ($response['status'] == 0) {
+                                    session()->flash('warning', 'Error al intentar cambiar laboratorio de la muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg']);
+                                    $this->suspectCaseBackToPending($suspectCase);
+                                    return redirect()->back()->withInput();
+                                }
+                                session()->flash('success', 'Se cambió laboratorio de la muestra en PNTM');
+
+                            } else {
+                                session()->flash('warning', 'No es posible modificar laboratorio en PNTM. No existe *id PNTM* del laboratorio.');
+                                $this->suspectCaseBackToPending($suspectCase);
+                                return redirect()->back()->withInput();
+                            }
+                        }
+
+                        //caso4: /si se cambia laboratorio, if $old_external_laboratory != $suspectCase->external_laboratory entra a condición
+                        //no es posible, porque no existe webservice. Se debe hacer de forma manual.
+
+                        //caso2
+                        if ($old_pcr == 'pending' && ($suspectCase->pcr_sars_cov_2 == 'positive' || $suspectCase->pcr_sars_cov_2 == 'negative' ||
+                                $suspectCase->pcr_sars_cov_2 == 'undetermined' || $suspectCase->pcr_sars_cov_2 == 'rejected')
+                            && $suspectCase->patient->demographic != NULL && $suspectCase->external_laboratory == null) {
+
+                            //envío información minsal
+                            $response = WSMinsal::resultado_muestra($suspectCase);
+                            if ($response['status'] == 0) {
+                                $responseSampleStatus = WSMinsal::obtiene_estado_muestra($suspectCase);
+                                //Si en pntm esta en estado 2 (no recepcionado)
+                                if($responseSampleStatus['status'] == 1 && $responseSampleStatus['sample_status'] == 2 && $suspectCase->reception_at != NULL){
+                                        $responseReception = WSMinsal::recepciona_muestra($suspectCase);
+                                        if($responseReception['status'] == 1){
+                                            $response = WSMinsal::resultado_muestra($suspectCase);
+                                            if ($response['status'] == 0) {
+                                                session()->flash('warning', 'Error al recepcionar y subir resultado de muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg']);
+                                                $this->suspectCaseBackToPending($suspectCase);
+                                                return redirect()->back()->withInput();
+                                            }
+                                        }else{
+                                            session()->flash('warning', 'Error al recepcionar y subir resultado de muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg']);
+                                            $this->suspectCaseBackToPending($suspectCase);
+                                            return redirect()->back()->withInput();
+                                        }
+                                }else{
+                                    session()->flash('warning', 'Error al subir resultado de muestra ' . $suspectCase->id . ' en MINSAL. ' . $response['msg']);
+                                    $this->suspectCaseBackToPending($suspectCase);
+                                    return redirect()->back()->withInput();
+                                }
+
+                            }
+
+                            session()->flash('success', 'Se subió resultado a PNTM');
+                        }
+
+                        //caso3
+                        //verificar si se cambia resultado de caso, en ese caso se debe modificar dato en tomademuestra.class
+                        //si $old_pcr != new_pcr && $old_pcr != 'pending' => está editado, y debiese entrar
+                        //no es posible, porque no existe webservice. Se debe hacer de forma manual.
+                    }
+                }
+            }
+        }
 
         /* Crea un TRACING si el resultado es positivo o indeterminado */
         if ($old_pcr == 'pending' and ($suspectCase->pcr_sars_cov_2 == 'positive' OR $suspectCase->pcr_sars_cov_2 == 'undetermined')) {
@@ -563,6 +947,19 @@ class SuspectCaseController extends Controller
         //return redirect()->route('lab.suspect_cases.index',$suspectCase->laboratory_id);
     }
 
+    /**
+     * Devuelve el suspect case a su estado 'pending'
+     * @param SuspectCase $suspectCase
+     */
+    private function suspectCaseBackToPending(SuspectCase $suspectCase): void
+    {
+        $suspectCase->pcr_sars_cov_2_at = NULL;
+        $suspectCase->pcr_sars_cov_2 = 'pending';
+        $suspectCase->validator_id = NULL;
+        $suspectCase->file = NULL;
+        $suspectCase->pcr_result_added_at = NULL;
+        $suspectCase->save();
+    }
 
     /**
      * Modifica datos notificación de suspect case.
@@ -677,8 +1074,7 @@ class SuspectCaseController extends Controller
         $beginExamDate = SuspectCase::orderBy('sample_at')->first()->sample_at;
         $laboratories = Laboratory::all();
 
-        $periods = CarbonPeriod::create($beginExamDate, now());
-
+        $periods = CarbonPeriod::create($beginExamDate, now()->addDay());
         $periods_count = $periods->count();
 
         // NUEVO CODIGO
@@ -732,7 +1128,7 @@ class SuspectCaseController extends Controller
 
         $beginExamDate = SuspectCase::orderBy('sample_at')->first()->sample_at;
 
-        $periods = CarbonPeriod::create($beginExamDate, now());
+        $periods = CarbonPeriod::create($beginExamDate, now()->addDay());
 
         $periods_count = $periods->count();
 
@@ -870,57 +1266,57 @@ class SuspectCaseController extends Controller
         return view('lab.suspect_cases.reports.positive_average_by_commune', compact('cases_by_days'));
     }
 
-    public function estadistico_diario_covid19(Request $request)
-    {
-        $yesterday = Carbon::now()->subDays(1)->format('Y-m-d 21:00');
-        $now = Carbon::now()->format('Y-m-d 21:00');
-        //dd($yesterday, $now);
-
-        $array = array();
-        $cases = SuspectCase::whereBetween('created_at',[$yesterday,$now])
-                            ->where('external_laboratory',NULL)
-                            ->whereNotNull('laboratory_id')
-                            ->get();
-        //dd($cases);
-        foreach ($cases as $key => $case) {
-          $array[$case->laboratory->name]['muestras_en_espera'] = 0;
-          $array[$case->laboratory->name]['muestras_recibidas'] = 0;
-          $array[$case->laboratory->name]['muestras_procesadas'] = 0;
-          $array[$case->laboratory->name]['muestras_positivas'] = 0;
-          $array[$case->laboratory->name]['muestras_procesadas_acumulados'] = 0;
-          $array[$case->laboratory->name]['muestras_procesadas_positivo'] = 0;
-          $array[$case->laboratory->name]['commune'] = '';
-        }
-
-        foreach ($cases as $key => $case) {
-          if($case->pcr_sars_cov_2 == "pending"){
-            $array[$case->laboratory->name]['muestras_en_espera'] += 1;
-          }
-          $array[$case->laboratory->name]['muestras_recibidas'] += 1;
-          if($case->pcr_sars_cov_2 != "pending" || $case->pcr_sars_cov_2 != "rejected"){
-            $array[$case->laboratory->name]['muestras_procesadas'] += 1;
-          }
-          if($case->pcr_sars_cov_2 == "positive"){
-            $array[$case->laboratory->name]['muestras_positivas'] += 1;
-          }
-
-          $array[$case->laboratory->name]['muestras_procesadas_acumulados'] = SuspectCase::where('external_laboratory',NULL)
-                                                                                         ->where('laboratory_id',$case->laboratory_id)
-                                                                                         ->where('pcr_sars_cov_2','<>','pending')
-                                                                                         ->where('pcr_sars_cov_2','<>','rejected')
-                                                                                         ->count();
-
-          $array[$case->laboratory->name]['muestras_procesadas_positivo'] = SuspectCase::where('external_laboratory',NULL)
-                                                                                         ->where('laboratory_id',$case->laboratory_id)
-                                                                                         ->where('pcr_sars_cov_2','positive')
-                                                                                         ->count();
-          $array[$case->laboratory->name]['commune'] = $case->laboratory->commune->name;
-        }
-
-        //dd($array);
-
-        return view('lab.suspect_cases.reports.estadistico_diario_covid19', compact('array','yesterday', 'now'));
-    }
+//    public function estadistico_diario_covid19(Request $request)
+//    {
+//        $yesterday = Carbon::now()->subDays(1)->format('Y-m-d 21:00');
+//        $now = Carbon::now()->format('Y-m-d 21:00');
+//        //dd($yesterday, $now);
+//
+//        $array = array();
+//        $cases = SuspectCase::whereBetween('created_at',[$yesterday,$now])
+//                            ->where('external_laboratory',NULL)
+//                            ->whereNotNull('laboratory_id')
+//                            ->get();
+//        //dd($cases);
+//        foreach ($cases as $key => $case) {
+//          $array[$case->laboratory->name]['muestras_en_espera'] = 0;
+//          $array[$case->laboratory->name]['muestras_recibidas'] = 0;
+//          $array[$case->laboratory->name]['muestras_procesadas'] = 0;
+//          $array[$case->laboratory->name]['muestras_positivas'] = 0;
+//          $array[$case->laboratory->name]['muestras_procesadas_acumulados'] = 0;
+//          $array[$case->laboratory->name]['muestras_procesadas_positivo'] = 0;
+//          $array[$case->laboratory->name]['commune'] = '';
+//        }
+//
+//        foreach ($cases as $key => $case) {
+//          if($case->pcr_sars_cov_2 == "pending"){
+//            $array[$case->laboratory->name]['muestras_en_espera'] += 1;
+//          }
+//          $array[$case->laboratory->name]['muestras_recibidas'] += 1;
+//          if($case->pcr_sars_cov_2 != "pending" || $case->pcr_sars_cov_2 != "rejected"){
+//            $array[$case->laboratory->name]['muestras_procesadas'] += 1;
+//          }
+//          if($case->pcr_sars_cov_2 == "positive"){
+//            $array[$case->laboratory->name]['muestras_positivas'] += 1;
+//          }
+//
+//          $array[$case->laboratory->name]['muestras_procesadas_acumulados'] = SuspectCase::where('external_laboratory',NULL)
+//                                                                                         ->where('laboratory_id',$case->laboratory_id)
+//                                                                                         ->where('pcr_sars_cov_2','<>','pending')
+//                                                                                         ->where('pcr_sars_cov_2','<>','rejected')
+//                                                                                         ->count();
+//
+//          $array[$case->laboratory->name]['muestras_procesadas_positivo'] = SuspectCase::where('external_laboratory',NULL)
+//                                                                                         ->where('laboratory_id',$case->laboratory_id)
+//                                                                                         ->where('pcr_sars_cov_2','positive')
+//                                                                                         ->count();
+//          $array[$case->laboratory->name]['commune'] = $case->laboratory->commune->name;
+//        }
+//
+//        //dd($array);
+//
+//        return view('lab.suspect_cases.reports.estadistico_diario_covid19', compact('array','yesterday', 'now'));
+//    }
 
 
 
@@ -992,21 +1388,84 @@ class SuspectCaseController extends Controller
     public function reception_inbox(Request $request)
     {
         $selectedEstablishment = $request->input('establishment_id');
+        $nameFilter = $request->input('filter_name_string');
+        $idFilter = $request->input('search');
 
-        $suspectCases = SuspectCase::whereNull('laboratory_id')
-            ->search($request->input('search'))
+        $suspectCases = SuspectCase::search($idFilter)
             ->where(function($q) use($selectedEstablishment){
                 if($selectedEstablishment){
                     $q->where('establishment_id', $selectedEstablishment);
                 }
             })
+            ->where(function ($query){
+                $query->where('laboratory_id', Auth::user()->laboratory_id)
+                    ->orWhereNull('laboratory_id');
+            })
+            ->wherehas('patient', function ($q) use ($nameFilter) {
+                $q->search($nameFilter);
+            })
+            ->where('reception_at', NULL)
             ->latest()
             ->paginate(200);
 
         $env_communes = array_map('trim',explode(",",env('COMUNAS')));
         $establishments = Establishment::whereIn('commune_id',$env_communes)->orderBy('name','ASC')->get();
+        $laboratories = Laboratory::all();
 
-        return view('lab.suspect_cases.reception_inbox', compact('suspectCases', 'establishments', 'selectedEstablishment'));
+        return view('lab.suspect_cases.reception_inbox', compact('suspectCases', 'establishments', 'selectedEstablishment', 'laboratories', 'nameFilter', 'idFilter'));
+    }
+
+    /**
+     * Muestra index de recepción por código de barras
+     * @param Request $request
+     * @return Application|Factory|View
+     */
+    public function barcodeReceptionIndex(Request $request)
+    {
+        return view('lab.suspect_cases.reception_barcode');
+    }
+
+    /**
+     * Recepciona por id de caso mediante código de barras
+     * @param Request $request
+     * @return Application|Factory|View
+     */
+    public function barcodeReception(Request $request){
+        if($request->has('id')){
+            $suspectCase = SuspectCase::find($request->get('id'));
+            $arraySuspectCase['id'] = $suspectCase->id;
+            $arraySuspectCase['fullName'] = $suspectCase->patient->fullName;
+            $arraySuspectCase['sampleAt'] = $suspectCase->sample_at;
+        }
+
+
+        if(!$suspectCase){
+            session()->flash('warning', "No se encuentra muestra con la id $request->get('id'.");
+        }elseif ($suspectCase->reception_at == NULL){
+            $receptionSuccess = $this->reception($request, $suspectCase, true);
+
+            if ($receptionSuccess) {
+                if(!session()->has('suspect_cases.received')){
+                    session()->put('suspect_cases.received', array());
+                }
+                session()->push('suspect_cases.received', $arraySuspectCase);
+            }
+
+        }else{
+            session()->flash('warning', "La muestra $suspectCase->id ya se encuentra recepcionada");
+        }
+
+        return view('lab.suspect_cases.reception_barcode', compact('suspectCase'));
+    }
+
+    /**
+     * Borra de la sesión los casos recepcionados para imprimir
+     */
+    public function barcodeReceptionForgetCasesReceived()
+    {
+        session()->forget('suspect_cases.received');
+        return view('lab.suspect_cases.reception_barcode');
+
     }
 
 //    public function exportExcel($cod_lab){
@@ -1043,7 +1502,12 @@ class SuspectCaseController extends Controller
                 ->get();
 
         } else {
+            $month = Carbon::parse($date)->month;
+            $year = Carbon::parse($date)->year;
+
             $filas = SuspectCase::where('laboratory_id', $cod_lab)
+                ->whereYear('sample_at', '=', $year)
+                ->whereMonth('sample_at', '=', $month)
                 ->orderBy('suspect_cases.id', 'desc')
                 ->get();
         }
@@ -1064,7 +1528,9 @@ class SuspectCaseController extends Controller
             'observación',
             'teléfono',
             'dirección',
-            'comuna'
+            'comuna',
+            'país',
+            'email'
         );
 
         $callback = function() use ($filas, $columnas)
@@ -1091,6 +1557,8 @@ class SuspectCaseController extends Controller
                     ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->telephone:'',
                     ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->fullAddress:'',
                     ($fila->patient && $fila->patient->demographic && $fila->patient->demographic->commune)?$fila->patient->demographic->commune->name:'',
+                    ($fila->patient && $fila->patient->demographic && $fila->patient->demographic->nationality) ? $fila->patient->demographic->nationality : '',
+                    ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->email:''
                 ),';');
             }
             fclose($file);
@@ -1122,36 +1590,110 @@ class SuspectCaseController extends Controller
         return view('lab.suspect_cases.notification_form', compact('suspectCase', 'user'));
     }
 
+    public function notificationFormSmall(SuspectCase $suspectCase){
+        $user = auth()->user();
+        return view('lab.suspect_cases.notification_form_small', compact('suspectCase', 'user'));
+    }
 
-    /**
-     * Se utiliza una única vez para migrar los archivos de suspect case a nueva carpeta
-     * con nuevos nombres.
-     */
-    public function filesMigrationSingleUse(){
-
-        Storage::makeDirectory('suspect_cases');
-
-        $files = File::orderBy('id', 'desc')->get();
-
-        foreach ($files as $file){
-
-            if($file->suspectCase){
-                $originFileName = $file->file;
-
-                if(Storage::exists('suspect_cases/' . $file->suspectCase->id . '.pdf')){
-                    Storage::delete('suspect_cases/' . $file->suspectCase->id . '.pdf');
-                }
-
-                Storage::copy($originFileName, 'suspect_cases/' . $file->suspectCase->id . '.pdf');
-                $file->suspectCase->file = true;
-                $file->suspectCase->save();
-//            dump($originFileName);
-            }
-
+    public function notificationFormSmallBulk(Request $request){
+        if ($request->has('selected_cases_ids')) {
+            $selectedCasesIds = $request->get('selected_cases_ids');
+            $suspectCases = SuspectCase::whereIn('id', $selectedCasesIds)->get();
         }
 
-        dd("Migración Lista.");
+        return view('lab.suspect_cases.notification_form_small_bulk', compact('suspectCases'));
+    }
 
+    public function exportExcelReceptionInbox($cod_lab){
+        $headers = array(
+            "Content-type" => "text/csv",
+            "Content-Disposition" => "attachment; filename=examenes_pendientes_recepcionar.csv",
+            "Pragma" => "no-cache",
+            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+            "Expires" => "0"
+        );
+
+//        ->where(function ($query){
+//            $query->where('laboratory_id', Auth::user()->laboratory_id)
+//                ->orWhereNull('laboratory_id');
+//        })
+
+        $filas = null;
+        $filas = SuspectCase::where('laboratory_id', Auth::user()->laboratory_id)
+            ->where('reception_at', NULL)
+            ->latest()
+            ->get();
+
+
+        $columnas = array(
+            '#',
+            'fecha_muestra',
+            'establecimiento',
+            'estab. detalle',
+            'nombre',
+            'identificador',
+            'edad',
+            'sexo',
+            'pcr_sars-cov2',
+            'observación',
+            'fecha_nacimiento',
+            'nacionalidad',
+            'correo_electronico',
+            'region_toma_muestra',
+            'trabajador_de_la_salud',
+            'contacto_estrecho',
+            'gestante',
+            'semanas_gestacion',
+            'presenta_sintomatología',
+            'fecha_inicio_síntomas',
+            'teléfono'
+//            'sem',
+//            'epivigila',
+//            'fecha de resultado',
+//            'teléfono',
+//            'dirección',
+//            'comuna'
+        );
+
+        $callback = function() use ($filas, $columnas)
+        {
+            $file = fopen('php://output', 'w');
+            fputs($file, $bom =( chr(0xEF) . chr(0xBB) . chr(0xBF) ));
+            fputcsv($file, $columnas,';');
+            foreach($filas as $fila) {
+                fputcsv($file, array(
+                    $fila->id,
+                    $fila->sample_at,
+                    ($fila->establishment)?$fila->establishment->alias: '',
+                    $fila->origin,
+                    ($fila->patient)?$fila->patient->fullName:'',
+                    ($fila->patient)?$fila->patient->Identifier:'',
+                    $fila->age,
+                    strtoupper($fila->gender[0]),
+                    $fila->Covid19,
+                    $fila->observation,
+                    ($fila->patient) ? $fila->patient->birthday : '',
+                    ($fila->patient && $fila->patient->demographic) ? $fila->patient->demographic->nationality : '',
+                    ($fila->patient && $fila->patient->demographic) ? $fila->patient->demographic->email : '',
+                    'Tarapacá',
+                    ($fila->functionary === NULL) ? '' : (($fila->functionary === 1) ? 'Si' : 'No'),
+                    ($fila->close_contact === NULL) ? '' : (($fila->close_contact === 1) ? 'Si' : 'No'),
+                    ($fila->gestation == 1) ? 'Si' : 'No', //todo
+                    $fila->gestation_week,
+                    ($fila->symptoms === NULL) ? '' : (($fila->symptoms === 1) ? 'Si' : 'No'),
+                    $fila->symptoms_at,
+                    ($fila->patient && $fila->patient->demographic) ? $fila->patient->demographic->telephone : ''
+//                    $fila->epidemiological_week,
+//                    $fila->epivigila,
+//                    $fila->pcr_sars_cov_2_at,
+//                    ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->telephone:'',
+//                    ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->fullAddress:'',
+//                    ($fila->patient && $fila->patient->demographic && $fila->patient->demographic->commune)?$fila->patient->demographic->commune->name:'',
+                ),';');
+            }
+            fclose($file);
+        };
+        return response()->stream($callback, 200, $headers);
     }
 
     public function index_bulk_load(){
@@ -1322,7 +1864,7 @@ class SuspectCaseController extends Controller
                     $new_suspect_case->patient_id = $patient_create->id;
                     $new_suspect_case->user_id = Auth::user()->id;
                     $new_suspect_case->validator_id = Auth::user()->id;
-                    
+
                     if($patient['Sexo'] == 'Masculino'){
                         $new_suspect_case->gender = 'male';
                     }
@@ -1385,5 +1927,16 @@ class SuspectCaseController extends Controller
         session()->flash('success', 'Se han modificado ' . $cont . ' casos.');
         return view('lab.suspect_cases.import_results');
     }
+
+
+
+    public function ws_test(){
+        $case = SuspectCase::find(507934);
+        $estadoMuestra = WSMinsal::obtiene_estado_muestra($case);
+        dd($estadoMuestra);
+        return redirect()->back();
+    }
+
+
 
 }

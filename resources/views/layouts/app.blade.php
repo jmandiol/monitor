@@ -88,13 +88,13 @@
 
                                 @can('SuspectCase: list')
                                 @php
-                                $labs = App\Laboratory::where('external',0)->get();                                
+                                $labs = App\Laboratory::where('external',0)->get();
                                 @endphp
 
                                 @foreach($labs as $lab)
                                 <a class="dropdown-item" href="{{ route('lab.suspect_cases.index',$lab) }}?&text=&pendientes=on">Laboratorio {{ $lab->alias }}</a>
-                                @endforeach                                
-                                
+                                @endforeach
+
 
                                 <div class="dropdown-divider"></div>
                                 <a class="dropdown-item" href="{{ route('lab.suspect_cases.index') }}?text=&pendientes=on">Todos los exámenes</a>
@@ -105,21 +105,21 @@
                                 @php
                                 $dialysis = App\EstablishmentUser::where('user_id',Auth::id())->get();
                                 @endphp
-                                @foreach($dialysis as $dialysi)                                
+                                @foreach($dialysis as $dialysi)
                                 @if(str_contains($dialysi->establishment->alias, 'Diálisis'))
-                                
+
                                 <a class="dropdown-item" href="{{ route('lab.suspect_cases.dialysis.index', $dialysi->establishment) }}">{{$dialysi->establishment->alias}}</a>
-                                
+
                                 @endif
-                                @endforeach                                
+                                @endforeach
                                 <div class="dropdown-divider"></div>
                                 @endcan
-                                
-                                
 
 
-                                
-                                
+
+
+
+
 
                                 @can('SuspectCase: own')
                                 <a class="dropdown-item" href="{{ route('lab.suspect_cases.ownIndex') }}?text=&filter%5B%5D=pending">Mis exámenes</a>
@@ -383,10 +383,35 @@
                                 <a class="dropdown-item" href="{{ route('lab.suspect_cases.reports.pending_more_than_two_days') }}">Reporte de casos pendientes mayores a 48 hrs.</a>
                                 @endcan
 
+                                @can('Report: cases without results')
+                                <a class="dropdown-item" href="{{ route('lab.suspect_cases.reports.cases_without_results') }}">Casos sin resultados por fecha</a>
+                                @endcan
+                                @can('Report: cases with barcodes')
+                                <a class="dropdown-item" href="{{ route('lab.suspect_cases.reports.cases_with_barcodes') }}">Casos códigos de barra</a>
+                                @endcan
+
                             </div>
                         </li>
                         @endcan
 
+                        @canany(['NotContacted: create',
+                                'NotContacted: list'])
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                    <i class="fas fa-phone"></i>
+                                    No Contactados
+                                </a>
+                                <div class="dropdown-menu" aria-labelledby="navbarDropdown">
+
+                                    @can('NotContacted: create')
+                                        <a class="dropdown-item" href="{{ route('pending_patient.create') }}">Crear paciente no contactado</a>
+                                    @endcan()
+                                    @can('NotContacted: list')
+                                        <a class="dropdown-item" href="{{ route('pending_patient.index') }}">Listar pacientes</a>
+                                    @endcan
+                                </div>
+                            </li>
+                        @endcanany
                         @endauth
                     </ul>
 

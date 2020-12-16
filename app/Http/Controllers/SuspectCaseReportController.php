@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Establishment;
 use http\Message;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\View\Factory;
@@ -859,10 +860,17 @@ class SuspectCaseReportController extends Controller
                     } else {
                         $response = WSMinsal::resultado_muestra($case);
                         if ($response['status'] == 0) {
+                            $case->ws_pntm_mass_sending = false;
+                            $case->save();
                             session()->flash('info', 'Error al subir resultado de muestra ' . $case->id . ' en MINSAL. ' . $response['msg']);
                             return redirect()->back();
                             // return view('lab.suspect_cases.reports.minsal_ws', compact('cases', 'request','laboratories'));
                         }
+                        if ($response['status'] == 1) {
+                            $case->ws_pntm_mass_sending = true;
+                            $case->save();
+                        }
+
                     }
                 }
             } else {
@@ -880,13 +888,133 @@ class SuspectCaseReportController extends Controller
         return view('lab.suspect_cases.reports.minsal_ws', compact('cases', 'request', 'laboratories'));
     }
 
+    public function ws_minsal_pendings_creation(Request $request)
+    {
+        set_time_limit(3600);
+
+        $from = '2020-10-30 08:35:23'; //date("Y-m-d 21:00:00", time() - 60 * 60 * 24);
+        $errors = '';
+
+        $case = SuspectCase::find('114122');
+
+        dump($case);
+
+//        foreach ($casosCreados as $case){
+            $response = WSMinsal::crea_muestra($case);
+            if ($response['status'] == 0) {
+                $errors = $errors . "case: " .$case->id . " " . $response['msg'] . "<br>";
+            }
+//        }
+
+        if($errors){
+            session()->flash('info', $errors);
+        }else {
+            session()->flash('success', 'Se han sincronizado muestras recepcion con PNTM.');
+        }
+
+        return redirect()->back();
+    }
+
+
+    /**
+     * Funcion para sincronizar receptions muestras que quedaron a mitad de proceso durante baja de sistema
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function ws_minsal_pendings_reception(Request $request)
+    {
+        set_time_limit(3600);
+
+        $from = '2020-11-10 20:05:17'; //date("Y-m-d 21:00:00", time() - 60 * 60 * 24);
+        $errors = '';
+
+        $casosRecepcionados = SuspectCase::whereNotNull('minsal_ws_id')
+            ->whereNull('external_laboratory')
+            ->where('reception_at', '>=', $from)->get();
+
+//        $casosRecepcionados = SuspectCase::whereNotNull('minsal_ws_id')
+//            ->whereNotNull('reception_at')
+//            ->whereNotNull('derivation_internal_lab_at')
+//            ->get();
+
+//        dd($casosRecepcionados);
+
+        foreach ($casosRecepcionados as $case){
+            $response = WSMinsal::recepciona_muestra($case);
+            if ($response['status'] == 0) {
+                $errors = $errors . "case: " .$case->id . " " . $response['msg'] . "<br>";
+            }
+        }
+
+//        dump('casos recepcionados', $casosRecepcionados->pluck('id'));
+//        dd('casos con resultado',$casosConResultado->pluck('id'));
+
+        if($errors){
+            session()->flash('info', $errors);
+        }else {
+            session()->flash('success', 'Se han sincronizado muestras recepcion con PNTM.');
+        }
+
+        return redirect()->back();
+    }
+
+    /**
+     * Funcion para sincronizar result muestras que quedaron a mitad de proceso durante baja de sistema
+     * @param Request $request
+     * @return \Illuminate\Http\RedirectResponse
+     */
+    public function ws_minsal_pendings_result(Request $request)
+    {
+        set_time_limit(3600);
+
+        $from = '2020-11-10 23:30:00';
+        $to = '2020-11-11 17:02:53';
+        $errors = '';
+
+        $casosConResultado = SuspectCase::whereNotNull('minsal_ws_id')
+            ->whereNull('external_laboratory')
+            ->where('pcr_result_added_at', '>=', $from)
+            ->where('pcr_result_added_at', '<=', $to)->get();
+
+//        $casosConResultado = SuspectCase::whereNotNull('minsal_ws_id')
+//            ->whereNotNull('pcr_sars_cov_2_at')
+//            ->whereNotNull('derivation_internal_lab_at')
+//            ->get();
+
+//        dd($casosConResultado);
+
+        foreach ($casosConResultado as $case) {
+            $response = WSMinsal::resultado_muestra($case);
+            if ($response['status'] == 0) {
+                $errors = $errors . "case: " .$case->id . " " . $response['msg'] . "<br>";
+            }
+        }
+
+//        dump('casos recepcionados', $casosRecepcionados->pluck('id'));
+//        dd('casos con resultado',$casosConResultado->pluck('id'));
+
+        if($errors){
+            session()->flash('info', $errors);
+        }else {
+            session()->flash('success', 'Se han sincronizado muestras resultado con PNTM.');
+        }
+
+        return redirect()->back();
+    }
+
+
     /*****************************************************/
     /*                  REPORTE SEREMI                   */
     /*****************************************************/
     public function report_seremi(Laboratory $laboratory)
     {
+        $from = Carbon::now()->subDays(15);
+        $to = Carbon::now();
 
-        $cases = SuspectCase::where('laboratory_id', $laboratory->id)->get()->sortDesc();
+        $cases = SuspectCase::where('laboratory_id', $laboratory->id)->
+            whereBetween('created_at', [$from, $to])->
+            get()->
+            sortDesc();
         return view('lab.suspect_cases.reports.seremi', compact('cases', 'laboratory'));
     }
 
@@ -1251,4 +1379,279 @@ class SuspectCaseReportController extends Controller
         $cases = SuspectCase::whereNull('receptor_id')->get();
         return view('lab.suspect_cases.reports.without_reception', compact('cases'));
     }
+
+    public function casesWithoutResults(Request $request)
+    {
+
+//        dd($userEstablishments);
+        if ($from = $request->has('from')) {
+            $from = $request->get('from') . ' 00:00:00';
+            $to = $request->get('to') . ' 23:59:59';
+        } else {
+            $from = Carbon::now();
+            $to = Carbon::now();
+        }
+
+        if($request->has('from')){
+            $headers = array(
+                "Content-type" => "text/csv",
+                "Content-Disposition" => "attachment; filename=examenes_pendientes_recepcionar.csv",
+                "Pragma" => "no-cache",
+                "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+                "Expires" => "0"
+            );
+
+//        ->where(function ($query){
+//            $query->where('laboratory_id', Auth::user()->laboratory_id)
+//                ->orWhereNull('laboratory_id');
+//        })
+
+            $userEstablishmentsIds = Auth::user()->establishments->pluck('id')->toArray();
+
+            $filas = null;
+            $filas = SuspectCase::where('pcr_sars_cov_2_at', NULL)
+            ->whereIn('establishment_id', $userEstablishmentsIds)
+            ->whereBetween('created_at', [$from, $to])
+            ->latest()
+            ->get();
+
+
+            $columnas = array(
+                '#',
+                'fecha_muestra',
+                'establecimiento',
+                'estab. detalle',
+                'nombre',
+                'identificador',
+                'edad',
+                'sexo',
+                'pcr_sars-cov2',
+                'observación',
+                'fecha_nacimiento',
+                'nacionalidad',
+                'correo_electronico',
+                'region_toma_muestra',
+                'trabajador_de_la_salud',
+                'contacto_estrecho',
+                'gestante',
+                'semanas_gestacion',
+                'presenta_sintomatología',
+                'fecha_inicio_síntomas',
+                'teléfono',
+                'recepcionado'
+//            'sem',
+//            'epivigila',
+//            'fecha de resultado',
+//            'teléfono',
+//            'dirección',
+//            'comuna'
+            );
+
+            $callback = function() use ($filas, $columnas)
+            {
+                $file = fopen('php://output', 'w');
+                fputs($file, $bom =( chr(0xEF) . chr(0xBB) . chr(0xBF) ));
+                fputcsv($file, $columnas,';');
+
+
+                foreach($filas as $fila) {
+
+
+
+                    fputcsv($file, array(
+                        $fila->id,
+                        $fila->sample_at,
+                        ($fila->establishment)?$fila->establishment->alias: '',
+                        $fila->origin,
+                        ($fila->patient)?$fila->patient->fullName:'',
+                        ($fila->patient)?$fila->patient->Identifier:'',
+                        $fila->age,
+                        strtoupper($fila->gender[0]),
+                        $fila->Covid19,
+                        $fila->observation,
+                        ($fila->patient) ? $fila->patient->birthday : '',
+                        ($fila->patient && $fila->patient->demographic) ? $fila->patient->demographic->nationality : '',
+                        ($fila->patient && $fila->patient->demographic) ? $fila->patient->demographic->email : '',
+                        'Tarapacá',
+                        ($fila->functionary === NULL) ? '' : (($fila->functionary === 1) ? 'Si' : 'No'),
+                        ($fila->close_contact === NULL) ? '' : (($fila->close_contact === 1) ? 'Si' : 'No'),
+                        ($fila->gestation == 1) ? 'Si' : 'No', //todo
+                        $fila->gestation_week,
+                        ($fila->symptoms === NULL) ? '' : (($fila->symptoms === 1) ? 'Si' : 'No'),
+                        $fila->symptoms_at,
+                        ($fila->patient && $fila->patient->demographic) ? $fila->patient->demographic->telephone : '',
+                        ($fila->reception_at) ? 'Si' : 'No'
+//                    $fila->epidemiological_week,
+//                    $fila->epivigila,
+//                    $fila->pcr_sars_cov_2_at,
+//                    ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->telephone:'',
+//                    ($fila->patient && $fila->patient->demographic)?$fila->patient->demographic->fullAddress:'',
+//                    ($fila->patient && $fila->patient->demographic && $fila->patient->demographic->commune)?$fila->patient->demographic->commune->name:'',
+                    ),';');
+                }
+                fclose($file);
+            };
+            return response()->stream($callback, 200, $headers);
+        }
+
+
+
+        return view('lab.suspect_cases.reports.cases_without_results', compact('from', 'to'));
+    }
+
+    /**
+     * Obtiene los casos creados filtrados por establecimiento y fecha de muestra, con códigos de barras
+     * @param Request $request
+     * @return Application|Factory|View
+     */
+    public function casesWithBarcodes(Request $request){
+//        dd($request);
+        $selectedEstablishment = $request->input('establishment_id');
+        $selectedSampleAt = $request->input('sample_at');
+
+        $suspectCases = null;
+        if($selectedEstablishment and $selectedSampleAt){
+            $suspectCases = SuspectCase::where(function ($q) use ($selectedEstablishment) {
+                if ($selectedEstablishment) {
+                    $q->where('establishment_id', $selectedEstablishment);
+                }
+            })
+                ->where(function ($q) use ($selectedSampleAt){
+                    if ($selectedSampleAt) {
+                        $q->whereDate('sample_at', $selectedSampleAt);
+                    }
+                })
+                ->where('laboratory_id', Auth::user()->laboratory_id)
+                ->where('reception_at', NULL)
+                ->where('pcr_sars_cov_2', 'pending')
+                ->latest()
+                ->get();
+        }
+
+
+
+
+        $env_communes = array_map('trim',explode(",",env('COMUNAS')));
+        $establishments = Establishment::whereIn('commune_id',$env_communes)->orderBy('name','ASC')->get();
+
+        return view('lab.suspect_cases.reports.cases_with_barcodes', compact('suspectCases', 'establishments', 'selectedEstablishment', 'selectedSampleAt'));
+
+    }
+
+    public function casesByIdsIndex()
+    {
+//        $externalLabs = Laboratory::where('external', 1)->get();
+        return view('lab.suspect_cases.reports.cases_by_ids_index');
+    }
+
+    public function exportExcelByCasesIds(Request $request){
+
+                $ids = $request->get('suspectCasesId');
+        $ids = explode(' ', $ids);
+        $id_lab_report = $request->get('id_lab_report');
+
+        $headers = array(
+            "Content-type" => "text/csv",
+            "Content-Disposition" => "attachment; filename=examenes_pendientes_recepcionar.csv",
+            "Pragma" => "no-cache",
+            "Cache-Control" => "must-revalidate, post-check=0, pre-check=0",
+            "Expires" => "0"
+        );
+
+        $filas = SuspectCase::whereIn('id', $ids)
+            ->latest()
+            ->get();
+
+
+        $columnas = array(
+            'run',
+            'dv',
+            'name',
+            'fathers_family',
+            'mothers_family',
+            'gender',
+            'birthday',
+            'status',
+            'street_type',
+            'address',
+            'number',
+            'department',
+            'city',
+            'suburb',
+            'commune_id',
+            'region_id',
+            'nationality',
+            'telephone',
+            'email',
+            'laboratory_id',
+            'sample_type',
+            'sample_at',
+            'recepcion_at',
+            'pcr_sars_cov_2_at',
+            'pcr_sars_cov_2',
+            'name',
+            'origin',
+            'run_medic',
+            'symptoms',
+            'symptoms_at',
+            'gestation',
+            'gestation_week',
+            'index_',
+            'functionary',
+            'observation',
+            'epivigila',
+        );
+
+        $callback = function() use ($filas, $columnas, $id_lab_report)
+        {
+            $file = fopen('php://output', 'w');
+            fputs($file, $bom =( chr(0xEF) . chr(0xBB) . chr(0xBF) ));
+            fputcsv($file, $columnas,';');
+            foreach($filas as $fila) {
+                fputcsv($file, array(
+                    ($fila->patient->run) ? $fila->patient->run : $fila->patient->other_identification,
+                    $fila->patient->dv,
+                    $fila->patient->name,
+                    $fila->patient->fathers_family,
+                    $fila->patient->mothers_family,
+                    $fila->patient->genderEsp,
+                    $fila->patient->birthday,
+                    $fila->patient->status,
+                    ($fila->patient->demographic) ? $fila->patient->demographic->street_type : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->address : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->number : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->department : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->city : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->suburb : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->commune_id : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->region_id : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->nationality : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->telephone : '',
+                    ($fila->patient->demographic) ? $fila->patient->demographic->email : '',
+                    $id_lab_report,
+                    $fila->sample_type,
+                    $fila->sample_at,
+                    $fila->reception_at,
+                    $fila->pcr_sars_cov_2_at,
+                    $fila->covid19,
+                    $fila->establishment->name,
+                    $fila->origin,
+                    $fila->run_medic,
+                    $fila->symptomEsp,
+                    $fila->symptoms_at,
+                    $fila->gestationEsp,
+                    $fila->gestation_week,
+                    '',
+                    $fila->functionaryEsp,
+                    $fila->observation,
+                    $fila->epivigila,
+                ),';');
+            }
+            fclose($file);
+        };
+        return response()->stream($callback, 200, $headers);
+    }
+
+
+
 }
